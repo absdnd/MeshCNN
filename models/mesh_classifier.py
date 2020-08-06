@@ -11,6 +11,7 @@ class ClassifierModel:
     e.g.,
     --dataset_mode -> classification / segmentation)
     --arch -> network type
+    Network type, Dataset mode is either classification or segmentation.                                                                       
     """
     def __init__(self, opt):
         self.opt = opt
@@ -28,10 +29,15 @@ class ClassifierModel:
         #
         self.nclasses = opt.nclasses
 
-        # load/define networks
+        # load/define networks: We import networks from the networks function.
+
+        # Define the network here. 
         self.net = networks.define_classifier(opt.input_nc, opt.ncf, opt.ninput_edges, opt.nclasses, opt,
                                               self.gpu_ids, opt.arch, opt.init_type, opt.init_gain)
+
+        # Check if the network is in training mode or not. 
         self.net.train(self.is_train)
+
         self.criterion = networks.define_loss(opt).to(self.device)
 
         if self.is_train:
@@ -42,25 +48,32 @@ class ClassifierModel:
         if not self.is_train or opt.continue_train:
             self.load_network(opt.which_epoch)
 
+    #Set Input, as self.set_input. 
     def set_input(self, data):
         input_edge_features = torch.from_numpy(data['edge_features']).float()
         labels = torch.from_numpy(data['label']).long()
-        # set inputs
+        #print(input_edge_features.shape, labels.shape)
+        # set edge features.
+        print(input_edge_features.shape, self.device)
         self.edge_features = input_edge_features.to(self.device).requires_grad_(self.is_train)
+        # Labels obtained.
         self.labels = labels.to(self.device)
         self.mesh = data['mesh']
         if self.opt.dataset_mode == 'segmentation' and not self.is_train:
             self.soft_label = torch.from_numpy(data['soft_label'])
 
-
+    # Forward pass through the network. 
     def forward(self):
+        # Forward pass using edge features and the mesh.
         out = self.net(self.edge_features, self.mesh)
         return out
 
+    # Backward propogation of loss function.
     def backward(self, out):
         self.loss = self.criterion(out, self.labels)
         self.loss.backward()
 
+    # Optimize parameters. 
     def optimize_parameters(self):
         self.optimizer.zero_grad()
         out = self.forward()
@@ -70,6 +83,7 @@ class ClassifierModel:
 
 ##################
 
+    # Load network, from pretrained .pth file. 
     def load_network(self, which_epoch):
         """load model from disk"""
         save_filename = '%s_net.pth' % which_epoch
@@ -85,7 +99,7 @@ class ClassifierModel:
             del state_dict._metadata
         net.load_state_dict(state_dict)
 
-
+    # Save the model after training after every epoch.
     def save_network(self, which_epoch):
         """save model to disk"""
         save_filename = '%s_net.pth' % (which_epoch)
@@ -96,12 +110,14 @@ class ClassifierModel:
         else:
             torch.save(self.net.cpu().state_dict(), save_path)
 
+    #Update the learning rate called every once in a while.
     def update_learning_rate(self):
         """update learning rate (called once every epoch)"""
         self.scheduler.step()
         lr = self.optimizer.param_groups[0]['lr']
         print('learning rate = %.7f' % lr)
 
+    # Test the model obtained
     def test(self):
         """tests model
         returns: number correct and total number
@@ -115,6 +131,7 @@ class ClassifierModel:
             correct = self.get_accuracy(pred_class, label_class)
         return correct, len(label_class)
 
+    # Obtain accuracy of prediction.
     def get_accuracy(self, pred, labels):
         """computes accuracy for classification / segmentation """
         if self.opt.dataset_mode == 'classification':
@@ -123,6 +140,7 @@ class ClassifierModel:
             correct = seg_accuracy(pred, self.soft_label, self.mesh)
         return correct
 
+    # Export and save segmentation. 
     def export_segmentation(self, pred_seg):
         if self.opt.dataset_mode == 'segmentation':
             for meshi, mesh in enumerate(self.mesh):

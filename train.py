@@ -1,3 +1,4 @@
+# The training of the classifier. 
 import time
 from options.train_options import TrainOptions
 from data import DataLoader
@@ -5,21 +6,28 @@ from models import create_model
 from util.writer import Writer
 from test import run_test
 
+# Choosing Train Options. 
 if __name__ == '__main__':
     opt = TrainOptions().parse()
+    # Using DataLoader to load dataset. 
     dataset = DataLoader(opt)
+    # The dataset size is dataset_size. 
     dataset_size = len(dataset)
     print('#training meshes = %d' % dataset_size)
 
+    # Create a model with opt parameters. 
     model = create_model(opt)
+    # Create a writer with opt parameters. 
     writer = Writer(opt)
     total_steps = 0
 
+    # For epoch in total_epochs range. 
     for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
+        # Taking into account start time. 
         epoch_start_time = time.time()
         iter_data_time = time.time()
         epoch_iter = 0
-
+        # Time taken for the iteration.
         for i, data in enumerate(dataset):
             iter_start_time = time.time()
             if total_steps % opt.print_freq == 0:
